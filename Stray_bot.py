@@ -5,7 +5,7 @@ from javascript import require, On
 
 class Stray_bot():
     def __init__(self, host,name,port=25565,isMain=True):
-        print("软件作者:StrayMeteor3337(YYC)")
+        print("软件作者:StrayMeteor3337")
         self.tplock = False
         self.enable_log = False
         self.host = host
