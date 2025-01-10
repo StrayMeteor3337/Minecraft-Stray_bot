@@ -1,105 +1,59 @@
-import sys
 import time
-import threading
 from javascript import require, On
 
+import botCommandPerformer as bcp
+
 class Stray_bot():
-    def __init__(self, host,name,port=25565,isMain=True):
+    def __init__(self, host,name,port=25565):
         print("软件作者:StrayMeteor3337")
-        self.tplock = False
-        self.enable_log = False
+        #self.tplock = False
+        self.enable_log = False#启用聊天日志
         self.host = host
         self.name = name
         self.port = port
-        self.isMain = isMain
-
-        mineflayer = require("mineflayer")
+        #导入nodejs模块
+        self.mineflayer = require("mineflayer")
+        self.pathfinder = require('mineflayer-pathfinder').pathfinder
+        #self.pathfinder不能用，self.bot.pathfinder才是加载后的寻路插件
+        self.Movements = require('mineflayer-pathfinder').Movements
+        self.goals = require('mineflayer-pathfinder').goals
         #Viewer = require("prismarine-viewer").mineflayer
-        self.bot = mineflayer.createBot({
-            "host": self.host,  # minecraft server ip
-            "username": self.name,  # username or email, switch if you want to change accounts
-            "auth": "offline",  # for offline mode servers, you can set this to 'offline'
-            "port": self.port,  # only set if you need a port that isn't 25565
-            "version": "1.20.2",
-            "defaultChatPatterns": False,
-            #"respawn": False
-            #"loadInternalPlugins": False,
-            # only set if you need a specific version or snapshot (ie: 1.8.9 or 1.16.5), otherwise it's set automatically
-            # password: '12345678'        # set if you want to use password-based auth (may be unreliable). If specified, the `username` must be an email
+        self.bot = self.mineflayer.createBot({
+            "host": self.host,  #服务器地址
+            "username": self.name,  #玩家名称
+            "auth": "microsoft",  #身份验证选项,离线服务器请使用'offline'
+            "port": self.port,  #服务器端口
+            "version": "1.21.4"#Minecraft服务器版本
         })
-        self.bot.on('kicked', self.reconnect)
-        self.bot.on('error', self.reconnect)
+        self.bot.loadPlugin(self.pathfinder)
+        self.bot.on('kicked', self.reconnect)#错误时重连
+        self.bot.on('error', self.reconnect)#错误时重连
         print("加载完成")
 
         def handleTP(tpaMessage):
-
-            start_str = "玩家"
-            end_str = "向你申请传送至你的位置"
-            player_name_start = tpaMessage.find("玩家") + len(start_str)
-            player_name_end = tpaMessage.find("向你申请传送至你的位置")
-            player_name = tpaMessage[player_name_start:player_name_end]
-            # [TPA]玩家StrayMeteor3337向你申请传送至你的位置!有效时间60秒
-            self.bot.chat("/tpa accept {name}".format(name = player_name))
-            time.sleep(2)
+            pass
 
         @On(self.bot, 'login')
         def handleLogin(*args):
             #Viewer(self.bot, {"port": 3007, "firstPerson": False})
             print("\n已进入服务器")
-            self.bot.chat("/reg Stray3337 Stray3337")
-            time.sleep(1)
-            # self.bot.chat("/logout")
-            time.sleep(2)
-            self.bot.chat("/login Stray3337")
-            time.sleep(2)
-            self.bot.chat("[bot]登录成功 版本1.0")
-            self.bot.chat("/tpa go StrayMeteor3337")
-
+            self.bot.chat("[bot]登录成功 版本1.1")
 
         @On(self.bot, 'message')
         def handleMsg(this, jsonMsg, position, sender, *args):
+            #记录聊天消息到日志文件
             log = "[{t}]".format(t = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())) + jsonMsg.toString() + "\n"
             if self.enable_log:
                 with open("Stray_bot.txt",mode="a+") as file:
                     file.write(log)
-            if isMain:
-                print(log)
-
-            if jsonMsg.toString().startswith("[TPA]") and isMain and self.enable_log == False:#只有主机器人才启用日志功能
-                self.enable_log = True
-
-            #处理tpa请求
-            if "向你申请传送至你的位置" in jsonMsg.toString():
-                if self.tplock:
-                    self.bot.chat("[bot命令]拒绝请求，您没有权限在在tplock开启时传送机器人")
-                    #self.bot.chat("/deny")
-                handleTP(jsonMsg.toString())
+            print(log)
 
         @On(self.bot, 'chat')
         def handleChat(this, sender, message, *args):
-
-            # print("\n获取信息", sender, message)
-            if message.startswith("@bot") and len(message.split()) >= 2:
-                if message.split()[1] == "tl":
-                    self.tplock = not self.tplock
-                    if self.tplock:
-                        self.bot.chat("[bot命令]tplock已开启")
-                    else:
-                        self.bot.chat("[bot命令]tplock已关闭")
-                if message.split()[1] == "d":
-                    self.bot.chat("[bot命令]正在断开连接")
-                # bot.quit()
-                # sys.exit()
-
-            """
-            if 'has sent you a teleport here request' in message:
-                if tplock:
-                    self.bot.chat("[bot命令]拒绝请求，您没有权限在在tplock开启时传送机器人")
-                    self.bot.chat("/deny")
-                    return
-                self.bot.chat("/accept")
-                time.sleep(2)
-            """
+            try:
+                if message.startswith("@bot"):  # @bot为机器人指令标志
+                    handle_bot_command(self,sender,message)
+            except SyntaxError:pass
 
     def send_msg(self, msg):
         self.bot.chat(msg)
@@ -107,30 +61,22 @@ class Stray_bot():
     def reconnect(self,*args):
         time.sleep(30)
         print(args[-1])
-        restart_bot(Stray_bot(self.host, self.name, self.port,self.isMain))
+        Stray_bot(self.host, self.name, self.port)#自动重连
 
-def fork(bots):
-    bot_sum = len(bots)
-    new_bot_name = "{name}_{num}".format(name=bots["Main"].name,num=str(bot_sum + 1))
-    bots[new_bot_name] = Stray_bot(bots["Main"].host,new_bot_name,bots["Main"].port,False)
+def handle_bot_command(bot,sender,command_str):#bot参数为Straybot类的实例
+    params = command_str.split()#params为命令参数列表，形如["@bot","follow"]
+    performer = bot_command.get(params[1])
+    if performer:#调用命令bot_command字典中的命令执行函数
+        performer(bot,sender)
 
-def handle_bot_command(command_str,bots):
-    command_list = command_str.split()
-    method = bot_command.get(command_list[1])
-    if method:
-        method(bots)
-
-def restart_bot(new_bot_instance):
-    bots[new_bot_instance.name] = new_bot_instance
-
-bot_command = {"fork":fork,"tl":print}
+#更新命令时在这里添加
+bot_command = {"here":bcp.bot_command_follow,
+               "":""}
 
 if __name__ == "__main__":
-    server = "mc.freespace.host"
-    server_port = 20033
-    StrayBot = Stray_bot(server,"Stray_bot_test",server_port)
-    bots = {"Main":StrayBot}#用于管理多个Stray_bot实例
+    server = "218.93.208.50"
+    server_port = 21201
+    StrayBot = Stray_bot(server,"WaxSeeker068070",server_port)
     while True:
         console_input = input("发送:")
-        if console_input.startswith("@bot"):
-            handle_bot_command(console_input,bots)
+        StrayBot.send_msg(console_input)
